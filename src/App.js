@@ -1,96 +1,103 @@
-import { useState, useEffect } from "react";
-import { Input } from "./components/ui/input";
-import { Card, CardContent } from "./components/ui/card";
-import { Button } from "./components/ui/button";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Header from "./Header";
+import Libros from "./Libros";
+import BuscarLibros from "./BuscarLibros";
+import IniciarSesion from "./IniciarSesion";
+import Registrarse from "./Registro";
 import "./styles.css";
 
-export default function BookViewer() {
+function App() {
   const [books, setBooks] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [showDescriptions, setShowDescriptions] = useState({});
+  const [user, setUser] = useState(null);
+  const [searchType, setSearchType] = useState("titulo"); // Estado para el tipo de búsqueda
 
+  // Recuperar la sesión del usuario al cargar la aplicación
+  useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
+
+  // Cargar libros al montar el componente
   useEffect(() => {
     fetchBooks();
   }, []);
 
-  const fetchBooks = async (query = "") => {
+  // Función para obtener libros
+  const fetchBooks = async (query = "", type = "titulo") => {
     setLoading(true);
     const url = query
-      ? `https://bibliotecav2.onrender.com/api/buscar_libros?query=${query}`
+      ? `https://bibliotecav2.onrender.com/api/buscar_libros?query=${query}&type=${type}`
       : "https://bibliotecav2.onrender.com/api/libros";
     try {
-      const response = await fetch(url);
-      const data = await response.json();
-      setBooks(data.resultados || []);
+      const response = await axios.get(url);
+      setBooks(response.data.resultados || []);
     } catch (error) {
       console.error("Error fetching books:", error);
     }
     setLoading(false);
   };
 
+  // Manejar la búsqueda
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchBooks(searchQuery);
+    fetchBooks(searchQuery, searchType);
   };
 
-  const toggleDescription = (index) => {
-    setShowDescriptions((prev) => ({
-      ...prev,
-      [index]: !prev[index],
-    }));
+  // Función para manejar el inicio de sesión
+  const handleLogin = (email) => {
+    const userData = { email };
+    setUser(userData);
+    localStorage.setItem("user", JSON.stringify(userData));
+  };
+
+  // Función para manejar el cierre de sesión
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem("user");
   };
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Biblioteca</h1>
-      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-        <Input
-          type="text"
-          placeholder="Buscar libros..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        <Button type="submit" disabled={loading}>
-          {loading ? "Buscando..." : "Buscar"}
-        </Button>
-      </form>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {books.map((book, index) => (
-          <Card key={index} className="p-2">
-            <img
-              src={book.imagen}
-              alt={book.titulo}
-              className="w-full h-40 object-cover rounded-lg mb-2"
-            />
-            <CardContent>
-              <h2 className="text-lg font-semibold">{book.titulo}</h2>
-              {Array.isArray(book.autores) ? (
-                <p className="text-sm">{book.autores.join(", ")}</p>
-              ) : (
-                <p className="text-sm">{book.autores}</p>
-              )}
-              <button
-                className="text-blue-500 text-sm mt-2"
-                onClick={() => toggleDescription(index)}
-              >
-                {showDescriptions[index] ? "Ocultar descripción" : "Ver descripción"}
-              </button>
-              {showDescriptions[index] && (
-                <p className="text-xs text-gray-600 mt-2">{book.descripcion}</p>
-              )}
-              <a
-                href={book.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 text-sm mt-2 block"
-              >
-                Ver más
-              </a>
-            </CardContent>
-          </Card>
-        ))}
+    <Router>
+      <div className="App">
+        <Header user={user} onLogout={handleLogout} />
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <BuscarLibros
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  handleSearch={handleSearch}
+                  loading={loading}
+                  searchType={searchType}
+                  setSearchType={setSearchType}
+                />
+                <Libros
+                  books={books}
+                  showDescriptions={showDescriptions}
+                  setShowDescriptions={setShowDescriptions}
+                  user={user}
+                />
+              </>
+            }
+          />
+          <Route
+            path="/iniciar-sesion"
+            element={<IniciarSesion onLogin={handleLogin} />}
+          />
+          <Route path="/registrarse" element={<Registrarse />} />
+        </Routes>
       </div>
-    </div>
+    </Router>
   );
 }
+
+export default App;
